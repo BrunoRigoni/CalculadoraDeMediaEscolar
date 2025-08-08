@@ -17,6 +17,10 @@ const fileInput = document.getElementById("file-input");
 const importBtn = document.getElementById("import-btn");
 const importStatus = document.getElementById("import-status");
 
+// Elementos de exportação
+const exportBtn = document.getElementById("export-btn");
+const exportStatus = document.getElementById("export-status");
+
 // Estrutura para organizar alunos por turma
 const turmas = {};
 
@@ -393,6 +397,135 @@ calcMedia.addEventListener("click", (e) => {
 calcMediaAluno.addEventListener("click", (e) => {
     e.preventDefault();
     calcularMediaAlunoIndividual();
+});
+
+// Função para mostrar status de exportação
+const mostrarStatusExportacao = (mensagem, tipo) => {
+    exportStatus.innerHTML = mensagem;
+    exportStatus.className = `export-status ${tipo}`;
+    exportStatus.style.display = 'block';
+    
+    if (tipo === 'success') {
+        setTimeout(() => {
+            exportStatus.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Função para gerar dados para exportação
+const gerarDadosExportacao = () => {
+    const todasAsTurmas = Object.keys(turmas);
+    
+    if (todasAsTurmas.length === 0) {
+        return null;
+    }
+
+    // Dados dos alunos
+    const dadosAlunos = [];
+    const dadosTurmas = [];
+    const dadosResumo = [];
+    
+    let totalAlunos = 0;
+    let somaMedias = 0;
+    
+    todasAsTurmas.sort().forEach(numeroTurma => {
+        const alunosTurma = turmas[numeroTurma];
+        const mediaTurma = alunosTurma.reduce((total, aluno) => total + Number(aluno.media), 0) / alunosTurma.length;
+        
+        totalAlunos += alunosTurma.length;
+        somaMedias += alunosTurma.reduce((total, aluno) => total + Number(aluno.media), 0);
+        
+        // Adicionar dados da turma
+        dadosTurmas.push({
+            'Turma': numeroTurma,
+            'Quantidade de Alunos': alunosTurma.length,
+            'Média da Turma': mediaTurma.toFixed(2)
+        });
+        
+        // Adicionar dados dos alunos
+        alunosTurma.forEach(aluno => {
+            dadosAlunos.push({
+                'Nome': aluno.nome,
+                'Turma': aluno.turma,
+                'Nota 1': aluno.nota1,
+                'Nota 2': aluno.nota2,
+                'Nota 3': aluno.nota3,
+                'Média': aluno.media,
+                'Status': aluno.media >= 7 ? 'Aprovado' : 'Reprovado'
+            });
+        });
+    });
+    
+    const mediaGeral = (somaMedias / totalAlunos).toFixed(2);
+    
+    // Dados do resumo geral
+    dadosResumo.push({
+        'Total de Turmas': todasAsTurmas.length,
+        'Total de Alunos': totalAlunos,
+        'Média Geral': mediaGeral
+    });
+    
+    return {
+        alunos: dadosAlunos,
+        turmas: dadosTurmas,
+        resumo: dadosResumo
+    };
+}
+
+// Função para exportar para Excel
+const exportarParaExcel = () => {
+    const dados = gerarDadosExportacao();
+    
+    if (!dados) {
+        mostrarStatusExportacao('Nenhum dado disponível para exportação. Adicione alunos primeiro.', 'error');
+        return;
+    }
+    
+    try {
+        // Criar workbook
+        const wb = XLSX.utils.book_new();
+        
+        // Planilha 1: Dados dos Alunos
+        const wsAlunos = XLSX.utils.json_to_sheet(dados.alunos);
+        XLSX.utils.book_append_sheet(wb, wsAlunos, 'Alunos');
+        
+        // Planilha 2: Resumo por Turma
+        const wsTurmas = XLSX.utils.json_to_sheet(dados.turmas);
+        XLSX.utils.book_append_sheet(wb, wsTurmas, 'Resumo por Turma');
+        
+        // Planilha 3: Resumo Geral
+        const wsResumo = XLSX.utils.json_to_sheet(dados.resumo);
+        XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo Geral');
+        
+        // Gerar nome do arquivo com data
+        const dataAtual = new Date().toISOString().split('T')[0];
+        const nomeArquivo = `relatorio_escolar_${dataAtual}.xlsx`;
+        
+        // Exportar arquivo
+        XLSX.writeFile(wb, nomeArquivo);
+        
+        // Mostrar mensagem de sucesso
+        mostrarStatusExportacao(
+            `✅ Relatório exportado com sucesso!<br>📁 Arquivo: ${nomeArquivo}<br>📊 ${dados.alunos.length} aluno(s) em ${dados.turmas.length} turma(s)`,
+            'success'
+        );
+        
+    } catch (erro) {
+        mostrarStatusExportacao(`Erro ao exportar arquivo: ${erro.message}`, 'error');
+    }
+}
+
+// Event listener para exportação
+exportBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    
+    if (Object.keys(turmas).length === 0) {
+        mostrarStatusExportacao('Nenhum aluno cadastrado ainda. Adicione alunos antes de exportar.', 'error');
+        return;
+    }
+    
+    mostrarStatusExportacao('Gerando relatório...', 'info');
+    exportarParaExcel();
 });
 
 
